@@ -52,60 +52,56 @@ with st.sidebar:
         
         if st.button("Segment Beads"):
             with st.spinner("Segmenting beads..."):
-                bead_segments = {}
                 metadata = []
                 for file in csv_files:
                     df = pd.read_csv(file)
                     segments = segment_beads(df, filter_column, threshold)
-                    if segments:
-                        bead_segments[file] = segments
-                        for bead_num, (start, end) in enumerate(segments, start=1):
-                            metadata.append({"file": file, "bead_number": bead_num, "start_index": start, "end_index": end})
+                    for bead_num, (start, end) in enumerate(segments, start=1):
+                        metadata.append({"file": file, "bead_number": bead_num, "start_index": start, "end_index": end})
                 st.success("Bead segmentation complete")
                 st.session_state["metadata"] = metadata
 
 if "metadata" in st.session_state:
-    for file_metadata in st.session_state["metadata"]:
-        file = file_metadata["file"]
+    for metadata in st.session_state["metadata"]:
+        file = metadata["file"]
         df = pd.read_csv(file)
         fig_width, fig_height = 5, 5
-        fig, axes = plt.subplots(2, len(file_metadata), figsize=(fig_width, fig_height), constrained_layout=True)
+        fig, axes = plt.subplots(2, len(st.session_state["metadata"]), figsize=(fig_width, fig_height), constrained_layout=True)
         
-        for i, metadata in enumerate(file_metadata):
-            bead_num = metadata["bead_number"]
-            start, end = metadata["start_index"], metadata["end_index"]
-            sample_data = df.iloc[start:end, :2].values
-            
-            fs = 10000  # Sampling frequency
-            nperseg = min(1024, len(sample_data) // 4)
-            noverlap = int(0.99 * nperseg)
-            nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
-            db_scale = 110
-            
-            f_nir, t_nir, Sxx_nir = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-            Sxx_dB_nir = 20 * np.log10(np.abs(Sxx_nir) + np.finfo(float).eps)
-            min_disp_dB_nir = np.max(Sxx_dB_nir) - db_scale
-            Sxx_dB_nir[Sxx_dB_nir < min_disp_dB_nir] = min_disp_dB_nir
-            
-            ax_nir = axes[0, i]
-            img_nir = ax_nir.pcolormesh(t_nir, f_nir, Sxx_dB_nir - min_disp_dB_nir, shading='gouraud', cmap='jet')
-            ax_nir.set_ylim([0, 500])
-            if i == 0:
-                ax_nir.set_ylabel("Frequency (Hz)")
-            ax_nir.set_xticks([])
-            
-            f_vis, t_vis, Sxx_vis = signal.spectrogram(sample_data[:, 1], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-            Sxx_dB_vis = 20 * np.log10(np.abs(Sxx_vis) + np.finfo(float).eps)
-            min_disp_dB_vis = np.max(Sxx_dB_vis) - 90
-            Sxx_dB_vis[Sxx_dB_vis < min_disp_dB_vis] = min_disp_dB_vis
-            
-            ax_vis = axes[1, i]
-            img_vis = ax_vis.pcolormesh(t_vis, f_vis, Sxx_dB_vis - min_disp_dB_vis, shading='gouraud', cmap='jet')
-            ax_vis.set_ylim([0, 500])
-            if i == 0:
-                ax_vis.set_ylabel("Frequency (Hz)")
-            ax_vis.set_xlabel("Time (s)")
-            
-        fig.colorbar(img_nir, ax=axes[0, -1], aspect=20)
-        fig.colorbar(img_vis, ax=axes[1, -1], aspect=20)
-        st.pyplot(fig)
+        bead_num = metadata["bead_number"]
+        start, end = metadata["start_index"], metadata["end_index"]
+        sample_data = df.iloc[start:end, :2].values
+        
+        fs = 10000  # Sampling frequency
+        nperseg = min(1024, len(sample_data) // 4)
+        noverlap = int(0.99 * nperseg)
+        nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
+        db_scale = 110
+        
+        f_nir, t_nir, Sxx_nir = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+        Sxx_dB_nir = 20 * np.log10(np.abs(Sxx_nir) + np.finfo(float).eps)
+        min_disp_dB_nir = np.max(Sxx_dB_nir) - db_scale
+        Sxx_dB_nir[Sxx_dB_nir < min_disp_dB_nir] = min_disp_dB_nir
+        
+        ax_nir = axes[0, bead_num - 1]
+        img_nir = ax_nir.pcolormesh(t_nir, f_nir, Sxx_dB_nir - min_disp_dB_nir, shading='gouraud', cmap='jet')
+        ax_nir.set_ylim([0, 500])
+        if bead_num == 1:
+            ax_nir.set_ylabel("Frequency (Hz)")
+        ax_nir.set_xticks([])
+        
+        f_vis, t_vis, Sxx_vis = signal.spectrogram(sample_data[:, 1], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+        Sxx_dB_vis = 20 * np.log10(np.abs(Sxx_vis) + np.finfo(float).eps)
+        min_disp_dB_vis = np.max(Sxx_dB_vis) - 90
+        Sxx_dB_vis[Sxx_dB_vis < min_disp_dB_vis] = min_disp_dB_vis
+        
+        ax_vis = axes[1, bead_num - 1]
+        img_vis = ax_vis.pcolormesh(t_vis, f_vis, Sxx_dB_vis - min_disp_dB_vis, shading='gouraud', cmap='jet')
+        ax_vis.set_ylim([0, 500])
+        if bead_num == 1:
+            ax_vis.set_ylabel("Frequency (Hz)")
+        ax_vis.set_xlabel("Time (s)")
+        
+    fig.colorbar(img_nir, ax=axes[0, -1], aspect=20)
+    fig.colorbar(img_vis, ax=axes[1, -1], aspect=20)
+    st.pyplot(fig)
