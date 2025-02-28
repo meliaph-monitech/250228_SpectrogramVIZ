@@ -70,8 +70,13 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         column_options = df.columns[:2].tolist()
         selected_column = st.sidebar.radio("Select Data Column", column_options)
         
-        # User input for frequency selection
-        selected_frequency = st.sidebar.number_input("Enter Frequency to Analyze", value=240, min_value=1)
+        if "selected_frequencies" not in st.session_state:
+            st.session_state["selected_frequencies"] = []
+        
+        frequency = st.sidebar.number_input("Enter Frequency (Hz)", min_value=1, value=240)
+        if st.sidebar.button("Add Frequency"):
+            if frequency not in st.session_state["selected_frequencies"]:
+                st.session_state["selected_frequencies"].append(frequency)
         
         start, end = st.session_state["metadata"][selected_file][selected_bead - 1]
         sample_data = df.iloc[start:end, :2].values
@@ -94,14 +99,18 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         fig.colorbar(img, ax=ax, aspect=20)
         st.pyplot(fig)
         
-        # Extracting intensity at selected frequency
-        freq_indices = np.where((f >= selected_frequency - 5) & (f <= selected_frequency + 5))[0]
-        intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0) - min_disp_dB
+        if st.session_state["selected_frequencies"]:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            for freq in st.session_state["selected_frequencies"]:
+                freq_indices = np.where((f >= freq - 5) & (f <= freq + 5))[0]
+                if len(freq_indices) > 0:
+                    intensity_over_time = np.mean(Sxx_dB[freq_indices, :] - min_disp_dB, axis=0)
+                    ax.plot(t, intensity_over_time, label=f"{freq} Hz")
+            
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Signal Intensities (dB)")
+            ax.legend()
+            st.pyplot(fig)
         
-        # Plot frequency intensity variation over time
-        fig_intensity, ax_intensity = plt.subplots(figsize=(6, 3))
-        ax_intensity.plot(t, intensity_over_time, label=f'Freq: {selected_frequency} Hz')
-        ax_intensity.set_xlabel("Time (s)")
-        ax_intensity.set_ylabel("Intensity (dB)")
-        ax_intensity.legend()
-        st.pyplot(fig_intensity)
+        if st.sidebar.button("Clear Frequencies"):
+            st.session_state["selected_frequencies"] = []
