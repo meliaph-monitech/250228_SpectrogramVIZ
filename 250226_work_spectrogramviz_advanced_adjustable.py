@@ -66,7 +66,7 @@ b = st.sidebar.number_input("Division Factor (b)", min_value=1, max_value=10, va
 c = st.sidebar.number_input("Overlap Ratio (c)", min_value=0.0, max_value=1.0, value=0.99)
 d = st.sidebar.number_input("nfft parameter (d)", min_value=512, max_value=8192, value=2048)
 db_scale = st.sidebar.number_input("dB Scale", min_value=50, max_value=150, value=110)
-ylimit = st.sidebar.number_input("Y-Axis Limit", min_value=100, max_value=5000, value=500)
+ylimit = st.sidebar.number_input("Y-Axis Limit", min_value=100, max_value=int(fs / 2), value=500)
 
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     selected_file = st.sidebar.selectbox("Select a CSV file", list(st.session_state["metadata"].keys()))
