@@ -60,7 +60,7 @@ with st.sidebar:
                 st.success("Bead segmentation complete")
                 st.session_state["metadata"] = metadata
 
-if "metadata" in st.session_state:
+if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     for file, segments in st.session_state["metadata"].items():
         df = pd.read_csv(file)
         bead_nums = np.arange(1, len(segments) + 1)
