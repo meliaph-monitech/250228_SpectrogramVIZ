@@ -60,6 +60,14 @@ with st.sidebar:
                 st.success("Bead segmentation complete")
                 st.session_state["metadata"] = metadata
 
+fs = st.sidebar.number_input("Sampling Frequency (fs)", min_value=1000, max_value=50000, value=10000)
+a = st.sidebar.number_input("nperseg parameter (a)", min_value=256, max_value=4096, value=1024)
+b = st.sidebar.number_input("Division Factor (b)", min_value=1, max_value=10, value=4)
+c = st.sidebar.number_input("Overlap Ratio (c)", min_value=0.0, max_value=1.0, value=0.99)
+d = st.sidebar.number_input("nfft parameter (d)", min_value=512, max_value=8192, value=2048)
+db_scale = st.sidebar.number_input("dB Scale", min_value=50, max_value=150, value=110)
+ylimit = st.sidebar.number_input("Y-Axis Limit", min_value=100, max_value=1000, value=500)
+
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     selected_file = st.sidebar.selectbox("Select a CSV file", list(st.session_state["metadata"].keys()))
     
@@ -80,11 +88,10 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         
         start, end = st.session_state["metadata"][selected_file][selected_bead - 1]
         sample_data = df.iloc[start:end, :2].values
-        fs = 10000
-        nperseg = min(1024, len(sample_data) // 4)
-        noverlap = int(0.99 * nperseg)
-        nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
-        db_scale = 110
+        
+        nperseg = min(a, len(sample_data) // b)
+        noverlap = int(c * nperseg)
+        nfft = min(d, b ** int(np.ceil(np.log2(nperseg * 2))))
         
         f, t, Sxx = signal.spectrogram(sample_data[:, df.columns.get_loc(selected_column)], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
         Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
@@ -93,7 +100,7 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         
         fig, ax = plt.subplots(figsize=(6, 4))
         img = ax.pcolormesh(t, f, Sxx_dB - min_disp_dB, shading='gouraud', cmap='jet')
-        ax.set_ylim([0, 500])
+        ax.set_ylim([0, ylimit])
         ax.set_ylabel("Frequency (Hz)")
         ax.set_xlabel("Time (s)")
         fig.colorbar(img, ax=ax, aspect=20)
