@@ -61,44 +61,32 @@ with st.sidebar:
                 st.session_state["metadata"] = metadata
 
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
-    for file, segments in st.session_state["metadata"].items():
-        df = pd.read_csv(file)
-        bead_nums = np.arange(1, len(segments) + 1)
-        fig_width, fig_height = 5 * len(bead_nums), 10
-        fig, axes = plt.subplots(2, len(bead_nums), figsize=(fig_width, fig_height), constrained_layout=True)
+    selected_file = st.sidebar.selectbox("Select a CSV file", list(st.session_state["metadata"].keys()))
+    
+    if selected_file:
+        df = pd.read_csv(selected_file)
+        bead_options = list(range(1, len(st.session_state["metadata"][selected_file]) + 1))
+        selected_bead = st.sidebar.selectbox("Select a Bead Number", bead_options)
+        column_options = df.columns[:2].tolist()
+        selected_column = st.sidebar.radio("Select Data Column", column_options)
         
-        for i, (start, end) in enumerate(segments):
-            sample_data = df.iloc[start:end, :2].values
-            fs = 10000
-            nperseg = min(1024, len(sample_data) // 4)
-            noverlap = int(0.99 * nperseg)
-            nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
-            db_scale = 110
-            
-            f_nir, t_nir, Sxx_nir = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-            Sxx_dB_nir = 20 * np.log10(np.abs(Sxx_nir) + np.finfo(float).eps)
-            min_disp_dB_nir = np.max(Sxx_dB_nir) - db_scale
-            Sxx_dB_nir[Sxx_dB_nir < min_disp_dB_nir] = min_disp_dB_nir
-            
-            ax_nir = axes[0, i]
-            img_nir = ax_nir.pcolormesh(t_nir, f_nir, Sxx_dB_nir - min_disp_dB_nir, shading='gouraud', cmap='jet')
-            ax_nir.set_ylim([0, 500])
-            if i == 0:
-                ax_nir.set_ylabel("Frequency (Hz)")
-            ax_nir.set_xticks([])
-            
-            f_vis, t_vis, Sxx_vis = signal.spectrogram(sample_data[:, 1], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-            Sxx_dB_vis = 20 * np.log10(np.abs(Sxx_vis) + np.finfo(float).eps)
-            min_disp_dB_vis = np.max(Sxx_dB_vis) - 90
-            Sxx_dB_vis[Sxx_dB_vis < min_disp_dB_vis] = min_disp_dB_vis
-            
-            ax_vis = axes[1, i]
-            img_vis = ax_vis.pcolormesh(t_vis, f_vis, Sxx_dB_vis - min_disp_dB_vis, shading='gouraud', cmap='jet')
-            ax_vis.set_ylim([0, 500])
-            if i == 0:
-                ax_vis.set_ylabel("Frequency (Hz)")
-            ax_vis.set_xlabel("Time (s)")
+        start, end = st.session_state["metadata"][selected_file][selected_bead - 1]
+        sample_data = df.iloc[start:end, :2].values
+        fs = 10000
+        nperseg = min(1024, len(sample_data) // 4)
+        noverlap = int(0.99 * nperseg)
+        nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
+        db_scale = 110
         
-        fig.colorbar(img_nir, ax=axes[0, -1], aspect=20)
-        fig.colorbar(img_vis, ax=axes[1, -1], aspect=20)
+        f, t, Sxx = signal.spectrogram(sample_data[:, df.columns.get_loc(selected_column)], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+        Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
+        min_disp_dB = np.max(Sxx_dB) - db_scale
+        Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
+        
+        fig, ax = plt.subplots(figsize=(6, 4))
+        img = ax.pcolormesh(t, f, Sxx_dB - min_disp_dB, shading='gouraud', cmap='jet')
+        ax.set_ylim([0, 500])
+        ax.set_ylabel("Frequency (Hz)")
+        ax.set_xlabel("Time (s)")
+        fig.colorbar(img, ax=ax, aspect=20)
         st.pyplot(fig)
