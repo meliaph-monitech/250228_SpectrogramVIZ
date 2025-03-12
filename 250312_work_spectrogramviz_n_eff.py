@@ -90,35 +90,26 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
     sorted_shortened_names = sorted(shortened_file_names.keys())
     
     # Use the sorted list in the multiselect dropdown
-    selected_files_short = st.sidebar.multiselect("Select CSV files", sorted_shortened_names)
+    selected_files_short = st.sidebar.multiselect("Select CSV files", sorted_shortened_names, key="selected_files")
     
     # Map back to full file paths
     selected_files = [shortened_file_names[short_name] for short_name in selected_files_short]
     
     selected_bead = st.sidebar.number_input("Select Bead Number", min_value=1, value=1, step=1)
+    
+    # Initialize session state for spectrogram data
+    if "spectrograms" not in st.session_state:
+        st.session_state["spectrograms"] = {}
 
-    if selected_files:
-        # Collect spectrogram data for the selected bead across all files
-        spectrogram_data = []
-        for file in selected_files:
+    # Update session state based on selected files
+    for file in selected_files:
+        if file not in st.session_state["spectrograms"]:
+            # Compute spectrogram only for newly selected files
             if selected_bead <= len(st.session_state["metadata"][file]):  # Ensure bead number is valid
                 df = pd.read_csv(file)
                 start, end = st.session_state["metadata"][file][selected_bead - 1]
                 sample_data = df.iloc[start:end, :2].values
-                spectrogram_data.append((file, sample_data))
-            else:
-                st.warning(f"Bead {selected_bead} is not available in {shorten_file_name(file)}.")
-
-        # Dynamically determine subplot layout
-        num_plots = len(spectrogram_data)
-        cols = min(num_plots, 6)  # Maximum of 6 columns per row
-        rows = int(np.ceil(num_plots / cols))  # Calculate rows dynamically
-
-        if num_plots > 0:
-            fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
-            axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
-        
-            for i, (file, sample_data) in enumerate(spectrogram_data):
+                
                 fs = 10000
                 nperseg = min(1024, len(sample_data) // 4)
                 noverlap = int(0.99 * nperseg)
@@ -130,22 +121,46 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 min_disp_dB = np.max(Sxx_dB) - db_scale
                 Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
                 
-                ax = axes[i]
-                img = ax.pcolormesh(t, f, Sxx_dB - min_disp_dB, shading='gouraud', cmap='jet')
-                ax.set_ylim([0, 500])
-                ax.set_ylabel("Frequency (Hz)")
-                ax.set_xlabel("Time (s)")
-                
-                # Extract the file name in the desired format
-                short_name = shorten_file_name(file)
-                ax.set_title(f"Bead {selected_bead}\n{short_name}")
-                fig.colorbar(img, ax=ax, aspect=20)
-        
-            # Hide extra subplots if any
-            for j in range(i + 1, len(axes)):
-                axes[j].axis('off')
-            
-            # Adjust spacing between rows and columns to prevent overlap
-            plt.subplots_adjust(hspace=0.45, wspace=0.4)  # Increase hspace and wspace for better spacing
-        
-            st.pyplot(fig)
+                # Store the spectrogram data in session state
+                st.session_state["spectrograms"][file] = {
+                    "f": f,
+                    "t": t,
+                    "Sxx_dB": Sxx_dB - min_disp_dB,
+                    "short_name": shorten_file_name(file)
+                }
+    
+    # Remove spectrograms for deselected files
+    for file in list(st.session_state["spectrograms"].keys()):
+        if file not in selected_files:
+            del st.session_state["spectrograms"][file]
+
+    # Render the spectrograms
+    spectrograms = st.session_state["spectrograms"]
+    num_plots = len(spectrograms)
+    cols = 6  # Fixed number of columns per row
+    rows = int(np.ceil(max(len(shortened_file_names), 1) / cols))  # Calculate rows dynamically based on the maximum number of files
+
+    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
+    axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
+
+    # Clear all axes to ensure unused subplots are empty
+    for ax in axes:
+        ax.clear()
+        ax.axis('off')  # Hide unused axes initially
+
+    # Populate the axes with selected spectrograms
+    for i, (file, data) in enumerate(spectrograms.items()):
+        ax = axes[i]
+        img = ax.pcolormesh(data["t"], data["f"], data["Sxx_dB"], shading='gouraud', cmap='jet')
+        ax.set_ylim([0, 500])
+        ax.set_ylabel("Frequency (Hz)")
+        ax.set_xlabel("Time (s)")
+        ax.set_title(f"Bead {selected_bead}\n{data['short_name']}")
+        fig.colorbar(img, ax=ax, aspect=20)
+        ax.axis('on')  # Turn on the axis for active plots
+
+    # Adjust spacing between rows and columns to prevent overlap
+    plt.subplots_adjust(hspace=0.5, wspace=0.4)
+
+    # Render the figure
+    st.pyplot(fig)
