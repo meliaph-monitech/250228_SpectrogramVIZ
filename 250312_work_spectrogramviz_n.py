@@ -66,31 +66,30 @@ with st.sidebar:
 # Main visualization logic
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
-    
+    selected_bead = st.sidebar.number_input("Select Bead Number", min_value=1, value=1, step=1)
+
     if selected_files:
-        # Dictionary to store selected beads for each file
-        selected_beads = {}
-        for file in selected_files:
-            bead_options = list(range(1, len(st.session_state["metadata"][file]) + 1))
-            selected_beads[file] = st.sidebar.selectbox(f"Select Bead for {os.path.basename(file)}", bead_options, key=file)
-
-        # Collect spectrogram data for selected beads
+        # Collect spectrogram data for the selected bead across all files
         spectrogram_data = []
-        for file, bead in selected_beads.items():
-            df = pd.read_csv(file)
-            start, end = st.session_state["metadata"][file][bead - 1]
-            sample_data = df.iloc[start:end, :2].values
-            spectrogram_data.append((file, bead, sample_data))
+        for file in selected_files:
+            if selected_bead <= len(st.session_state["metadata"][file]):  # Ensure bead number is valid
+                df = pd.read_csv(file)
+                start, end = st.session_state["metadata"][file][selected_bead - 1]
+                sample_data = df.iloc[start:end, :2].values
+                spectrogram_data.append((file, sample_data))
+            else:
+                st.warning(f"Bead {selected_bead} is not available in {os.path.basename(file)}.")
 
-        # Plot spectrograms in subplots
+        # Dynamically determine subplot layout
         num_plots = len(spectrogram_data)
+        cols = min(num_plots, 4)  # Maximum of 4 columns per row
+        rows = int(np.ceil(num_plots / cols))  # Calculate rows dynamically
+
         if num_plots > 0:
-            rows = int(np.ceil(num_plots / 2))  # 2 plots per row
-            cols = 2  # Fixed number of columns
-            fig, axes = plt.subplots(rows, cols, figsize=(12, rows * 4))
-            axes = axes.flatten()  # Flatten in case of odd number of plots
-            
-            for i, (file, bead, sample_data) in enumerate(spectrogram_data):
+            fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
+            axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
+
+            for i, (file, sample_data) in enumerate(spectrogram_data):
                 fs = 10000
                 nperseg = min(1024, len(sample_data) // 4)
                 noverlap = int(0.99 * nperseg)
@@ -111,9 +110,9 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 # Extract the file name in the desired format
                 base_name = os.path.basename(file)
                 display_name = base_name.split("_")[-1].split(".")[0]
-                ax.set_title(f"Bead {bead}\n{display_name}")
+                ax.set_title(f"Bead {selected_bead}\n{display_name}")
                 fig.colorbar(img, ax=ax, aspect=20)
-            
+
             # Hide extra subplots if any
             for j in range(i + 1, len(axes)):
                 axes[j].axis('off')
