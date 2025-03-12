@@ -11,14 +11,20 @@ st.title("Spectrogram VIZ")
 
 # Function to extract CSV files from a ZIP archive
 def extract_zip(zip_path, extract_dir="extracted_csvs"):
-    if os.path.exists(extract_dir):
+    if os.path.exists(extract_dir):  # Check if the directory exists
+        # Check if the directory contains any files before attempting to remove them
         for file in os.listdir(extract_dir):
-            os.remove(os.path.join(extract_dir, file))
+            file_path = os.path.join(extract_dir, file)
+            if os.path.isfile(file_path):  # Ensure it's a file (not a subdirectory)
+                os.remove(file_path)
     else:
-        os.makedirs(extract_dir)
+        os.makedirs(extract_dir)  # Create the directory if it doesn't exist
     
+    # Extract the ZIP file contents
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
+    
+    # Collect CSV files from the extracted directory
     csv_files = [f for f in os.listdir(extract_dir) if f.endswith('.csv')]
     return [os.path.join(extract_dir, f) for f in csv_files], extract_dir
 
