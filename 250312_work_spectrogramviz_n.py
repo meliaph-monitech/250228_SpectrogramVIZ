@@ -39,6 +39,18 @@ def segment_beads(df, column, threshold):
             i += 1
     return list(zip(start_indices, end_indices))
 
+# Helper function to extract short file names
+def shorten_file_name(file_path):
+    """
+    Extracts the hhmmss and nn parts of the file name from the format:
+    extracted_csvs/YYMMDD_hhmmss_*_nn.csv
+    """
+    base_name = os.path.basename(file_path)
+    parts = base_name.split("_")
+    hhmmss = parts[1]  # The second part is always the time (hhmmss)
+    nn = parts[-1].split(".")[0]  # The last part before .csv is the nn
+    return f"{hhmmss}_{nn}"
+
 # Sidebar for file upload and configuration
 with st.sidebar:
     uploaded_file = st.file_uploader("Upload a ZIP file containing CSV files", type=["zip"])
@@ -65,7 +77,13 @@ with st.sidebar:
 
 # Main visualization logic
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
-    selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
+    # Display shortened file names in the sidebar
+    shortened_file_names = {shorten_file_name(file): file for file in st.session_state["metadata"].keys()}
+    selected_files_short = st.sidebar.multiselect("Select CSV files", list(shortened_file_names.keys()))
+    
+    # Map back to full file paths
+    selected_files = [shortened_file_names[short_name] for short_name in selected_files_short]
+    
     selected_bead = st.sidebar.number_input("Select Bead Number", min_value=1, value=1, step=1)
 
     if selected_files:
@@ -78,11 +96,11 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 sample_data = df.iloc[start:end, :2].values
                 spectrogram_data.append((file, sample_data))
             else:
-                st.warning(f"Bead {selected_bead} is not available in {os.path.basename(file)}.")
+                st.warning(f"Bead {selected_bead} is not available in {shorten_file_name(file)}.")
 
         # Dynamically determine subplot layout
         num_plots = len(spectrogram_data)
-        cols = min(num_plots, 4)  # Maximum of 4 columns per row
+        cols = min(num_plots, 6)  # Maximum of 6 columns per row
         rows = int(np.ceil(num_plots / cols))  # Calculate rows dynamically
 
         if num_plots > 0:
@@ -108,9 +126,8 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 ax.set_xlabel("Time (s)")
                 
                 # Extract the file name in the desired format
-                base_name = os.path.basename(file)
-                display_name = base_name.split("_")[-1].split(".")[0]
-                ax.set_title(f"Bead {selected_bead}\n{display_name}")
+                short_name = shorten_file_name(file)
+                ax.set_title(f"Bead {selected_bead}\n{short_name}")
                 fig.colorbar(img, ax=ax, aspect=20)
 
             # Hide extra subplots if any
