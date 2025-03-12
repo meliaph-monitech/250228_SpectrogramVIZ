@@ -137,29 +137,30 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
     # Render the spectrograms
     spectrograms = st.session_state["spectrograms"]
     num_plots = len(spectrograms)
-    cols = min(num_plots, 6)  # Maximum of 6 columns per row
-    rows = int(np.ceil(num_plots / cols))  # Calculate rows dynamically
+    cols = 6  # Fixed number of columns per row
+    rows = int(np.ceil(max(len(shortened_file_names), 1) / cols))  # Calculate rows dynamically based on the maximum number of files
 
-    if num_plots > 0:
-        fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
-        axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
-        
-        for i, (file, data) in enumerate(spectrograms.items()):
-            ax = axes[i]
-            img = ax.pcolormesh(data["t"], data["f"], data["Sxx_dB"], shading='gouraud', cmap='jet')
-            ax.set_ylim([0, 500])
-            ax.set_ylabel("Frequency (Hz)")
-            ax.set_xlabel("Time (s)")
-            ax.set_title(f"Bead {selected_bead}\n{data['short_name']}")
-            fig.colorbar(img, ax=ax, aspect=20)
-        
-        # Hide extra subplots if any
-        for j in range(i + 1, len(axes)):
-            axes[j].axis('off')
-        
-        # Adjust spacing between rows and columns to prevent overlap
-        plt.subplots_adjust(hspace=0.5, wspace=0.4)  # Increase hspace and wspace for better spacing
-        
-        st.pyplot(fig)
-    else:
-        st.write("No spectrograms to display. Please select a file.")
+    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
+    axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
+
+    # Clear all axes to ensure unused subplots are empty
+    for ax in axes:
+        ax.clear()
+        ax.axis('off')  # Hide unused axes initially
+
+    # Populate the axes with selected spectrograms
+    for i, (file, data) in enumerate(spectrograms.items()):
+        ax = axes[i]
+        img = ax.pcolormesh(data["t"], data["f"], data["Sxx_dB"], shading='gouraud', cmap='jet')
+        ax.set_ylim([0, 500])
+        ax.set_ylabel("Frequency (Hz)")
+        ax.set_xlabel("Time (s)")
+        ax.set_title(f"Bead {selected_bead}\n{data['short_name']}")
+        fig.colorbar(img, ax=ax, aspect=20)
+        ax.axis('on')  # Turn on the axis for active plots
+
+    # Adjust spacing between rows and columns to prevent overlap
+    plt.subplots_adjust(hspace=0.5, wspace=0.4)
+
+    # Render the figure
+    st.pyplot(fig)
