@@ -160,7 +160,7 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         ax.axis('on')  # Turn on the axis for active plots
 
     # Adjust spacing between rows and columns to prevent overlap
-    plt.subplots_adjust(hspace=0.6, wspace=0.4)
+    plt.subplots_adjust(hspace=0.5, wspace=0.4)
 
     # Render the figure
     st.pyplot(fig)
