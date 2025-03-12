@@ -146,6 +146,6 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 axes[j].axis('off')
             
             # Adjust spacing between rows and columns to prevent overlap
-            plt.subplots_adjust(hspace=0.75, wspace=0.4)  # Increase hspace and wspace for better spacing
+            plt.subplots_adjust(hspace=0.55, wspace=0.4)  # Increase hspace and wspace for better spacing
         
             st.pyplot(fig)
