@@ -79,7 +79,12 @@ with st.sidebar:
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     # Display shortened file names in the sidebar
     shortened_file_names = {shorten_file_name(file): file for file in st.session_state["metadata"].keys()}
-    selected_files_short = st.sidebar.multiselect("Select CSV files", list(shortened_file_names.keys()))
+    
+    # Sort the keys (shortened file names) alphabetically
+    sorted_shortened_names = sorted(shortened_file_names.keys())
+    
+    # Use the sorted list in the multiselect dropdown
+    selected_files_short = st.sidebar.multiselect("Select CSV files", sorted_shortened_names)
     
     # Map back to full file paths
     selected_files = [shortened_file_names[short_name] for short_name in selected_files_short]
