@@ -7,24 +7,19 @@ import zipfile
 import os
 
 st.set_page_config(layout="wide")
-st.title("Spectrogram VIZ")
+st.title("Welding Data Visualization")
 
 # Function to extract CSV files from a ZIP archive
 def extract_zip(zip_path, extract_dir="extracted_csvs"):
-    if os.path.exists(extract_dir):  # Check if the directory exists
-        # Check if the directory contains any files before attempting to remove them
+    if os.path.exists(extract_dir):
         for file in os.listdir(extract_dir):
             file_path = os.path.join(extract_dir, file)
-            if os.path.isfile(file_path):  # Ensure it's a file (not a subdirectory)
+            if os.path.isfile(file_path):
                 os.remove(file_path)
     else:
-        os.makedirs(extract_dir)  # Create the directory if it doesn't exist
-    
-    # Extract the ZIP file contents
+        os.makedirs(extract_dir)
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
-    
-    # Collect CSV files from the extracted directory
     csv_files = [f for f in os.listdir(extract_dir) if f.endswith('.csv')]
     return [os.path.join(extract_dir, f) for f in csv_files], extract_dir
 
@@ -47,14 +42,10 @@ def segment_beads(df, column, threshold):
 
 # Helper function to extract short file names
 def shorten_file_name(file_path):
-    """
-    Extracts the hhmmss and nn parts of the file name from the format:
-    extracted_csvs/YYMMDD_hhmmss_*_nn.csv
-    """
     base_name = os.path.basename(file_path)
     parts = base_name.split("_")
-    hhmmss = parts[1]  # The second part is always the time (hhmmss)
-    nn = parts[-1].split(".")[0]  # The last part before .csv is the nn
+    hhmmss = parts[1]
+    nn = parts[-1].split(".")[0]
     return f"{hhmmss}_{nn}"
 
 # Sidebar for file upload and configuration
@@ -83,84 +74,88 @@ with st.sidebar:
 
 # Main visualization logic
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
-    # Display shortened file names in the sidebar
     shortened_file_names = {shorten_file_name(file): file for file in st.session_state["metadata"].keys()}
-    
-    # Sort the keys (shortened file names) alphabetically
     sorted_shortened_names = sorted(shortened_file_names.keys())
-    
-    # Use the sorted list in the multiselect dropdown
     selected_files_short = st.sidebar.multiselect("Select CSV files", sorted_shortened_names, key="selected_files")
-    
-    # Map back to full file paths
     selected_files = [shortened_file_names[short_name] for short_name in selected_files_short]
-    
     selected_bead = st.sidebar.number_input("Select Bead Number", min_value=1, value=1, step=1)
     
-    # Initialize session state for spectrogram data
-    if "spectrograms" not in st.session_state:
-        st.session_state["spectrograms"] = {}
-
-    # Update session state based on selected files
-    for file in selected_files:
-        if file not in st.session_state["spectrograms"]:
-            # Compute spectrogram only for newly selected files
-            if selected_bead <= len(st.session_state["metadata"][file]):  # Ensure bead number is valid
+    # Visualization options
+    visualization_option = st.sidebar.selectbox(
+        "Select Visualization",
+        [
+            "Show Spectrogram",
+            "Show Frequency Intensity Plot (Line Plot)",
+            "Heatmap of Frequency Intensity",
+            "Scatter Plot of Frequency Intensity Ratios",
+            "Binary Thresholding",
+            "Summary Statistics Visualization"
+        ]
+    )
+    
+    if selected_files:
+        for file in selected_files:
+            if selected_bead <= len(st.session_state["metadata"][file]):
                 df = pd.read_csv(file)
                 start, end = st.session_state["metadata"][file][selected_bead - 1]
-                sample_data = df.iloc[start:end, :2].values
+                sample_data = df.iloc[start:end, :]
+                signal_data = sample_data.iloc[:, 0].values  # Assuming first column is the signal
                 
                 fs = 10000
-                nperseg = min(1024, len(sample_data) // 4)
-                noverlap = int(0.99 * nperseg)
-                nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
-                db_scale = 110
-                
-                f, t, Sxx = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+                f, t, Sxx = signal.spectrogram(signal_data, fs, nperseg=1024, noverlap=512, nfft=2048)
                 Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
-                min_disp_dB = np.max(Sxx_dB) - db_scale
-                Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
+
+                if visualization_option == "Show Spectrogram":
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.pcolormesh(t, f, Sxx_dB, shading='gouraud', cmap='jet')
+                    ax.set_ylim([0, 500])
+                    ax.set_xlabel("Time (s)")
+                    ax.set_ylabel("Frequency (Hz)")
+                    ax.set_title(f"Spectrogram - Bead {selected_bead}")
+                    st.pyplot(fig)
                 
-                # Store the spectrogram data in session state
-                st.session_state["spectrograms"][file] = {
-                    "f": f,
-                    "t": t,
-                    "Sxx_dB": Sxx_dB - min_disp_dB,
-                    "short_name": shorten_file_name(file)
-                }
-    
-    # Remove spectrograms for deselected files
-    for file in list(st.session_state["spectrograms"].keys()):
-        if file not in selected_files:
-            del st.session_state["spectrograms"][file]
-
-    # Render the spectrograms
-    spectrograms = st.session_state["spectrograms"]
-    num_plots = len(spectrograms)
-    cols = 6  # Fixed number of columns per row
-    rows = int(np.ceil(max(len(shortened_file_names), 1) / cols))  # Calculate rows dynamically based on the maximum number of files
-
-    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
-    axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
-
-    # Clear all axes to ensure unused subplots are empty
-    for ax in axes:
-        ax.clear()
-        ax.axis('off')  # Hide unused axes initially
-
-    # Populate the axes with selected spectrograms
-    for i, (file, data) in enumerate(spectrograms.items()):
-        ax = axes[i]
-        img = ax.pcolormesh(data["t"], data["f"], data["Sxx_dB"], shading='gouraud', cmap='jet')
-        ax.set_ylim([0, 500])
-        ax.set_ylabel("Frequency (Hz)")
-        ax.set_xlabel("Time (s)")
-        ax.set_title(f"Bead {selected_bead}\n{data['short_name']}")
-        fig.colorbar(img, ax=ax, aspect=20)
-        ax.axis('on')  # Turn on the axis for active plots
-
-    # Adjust spacing between rows and columns to prevent overlap
-    plt.subplots_adjust(hspace=0.5, wspace=0.4)
-
-    # Render the figure
-    st.pyplot(fig)
+                elif visualization_option == "Show Frequency Intensity Plot (Line Plot)":
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.plot(f, np.mean(Sxx, axis=1))
+                    ax.set_xlim([0, 500])
+                    ax.set_xlabel("Frequency (Hz)")
+                    ax.set_ylabel("Intensity")
+                    ax.set_title(f"Frequency Intensity Plot - Bead {selected_bead}")
+                    st.pyplot(fig)
+                
+                elif visualization_option == "Heatmap of Frequency Intensity":
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    heatmap_data = Sxx_dB[(f >= 0) & (f <= 500), :]
+                    ax.imshow(heatmap_data, aspect='auto', cmap='jet', extent=[t.min(), t.max(), 0, 500])
+                    ax.set_xlabel("Time (s)")
+                    ax.set_ylabel("Frequency (Hz)")
+                    ax.set_title(f"Heatmap of Frequency Intensity - Bead {selected_bead}")
+                    st.pyplot(fig)
+                
+                elif visualization_option == "Scatter Plot of Frequency Intensity Ratios":
+                    ratio_400_200 = Sxx[f == 400, :].mean() / Sxx[f == 200, :].mean()
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.scatter(range(len(ratio_400_200)), ratio_400_200)
+                    ax.set_xlabel("Time")
+                    ax.set_ylabel("Intensity Ratio (400Hz/200Hz)")
+                    ax.set_title(f"Scatter Plot of Frequency Ratios - Bead {selected_bead}")
+                    st.pyplot(fig)
+                
+                elif visualization_option == "Binary Thresholding":
+                    intensity_400 = Sxx[f == 400, :].mean(axis=1)
+                    binary = intensity_400 > threshold
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.plot(binary, label="Binary Threshold")
+                    ax.set_xlabel("Time")
+                    ax.set_ylabel("Above Threshold (1=True)")
+                    ax.set_title(f"Binary Thresholding - Bead {selected_bead}")
+                    st.pyplot(fig)
+                
+                elif visualization_option == "Summary Statistics Visualization":
+                    mean_400 = Sxx[f == 400, :].mean()
+                    mean_200 = Sxx[f == 200, :].mean()
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.bar(["200Hz", "400Hz"], [mean_200, mean_400])
+                    ax.set_ylabel("Mean Intensity")
+                    ax.set_title(f"Summary Statistics - Bead {selected_bead}")
+                    st.pyplot(fig)
