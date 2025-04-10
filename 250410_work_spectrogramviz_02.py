@@ -5,10 +5,9 @@ import scipy.signal as signal
 import zipfile
 import os
 import plotly.graph_objects as go
-import plotly.express as px
 
 st.set_page_config(layout="wide")
-st.title("Spectrogram VIZ with Frequency-Specific Line Plot Comparison")
+st.title("Spectrogram VIZ with Line Plot Comparison")
 
 # Function to extract CSV files from ZIP
 def extract_zip(zip_path, extract_dir="extracted_csvs"):
@@ -73,10 +72,13 @@ d = st.sidebar.number_input("nfft parameter (d)", min_value=512, max_value=8192,
 db_scale = st.sidebar.number_input("dB Scale", min_value=50, max_value=150, value=110)
 ylimit = st.sidebar.number_input("Y-Axis Limit", min_value=100, max_value=int(fs / 2), value=500)
 
+# Checkbox for normalization
+normalize = st.sidebar.checkbox("Normalize Intensities")
+
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     # Select files and beads
     selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
-    selected_frequencies = st.sidebar.text_area("Enter Frequencies (Hz, comma-separated)", "200, 400").split(",")
+    selected_frequencies = st.sidebar.text_area("Enter Frequencies (Hz, comma-separated)", "240, 500").split(",")
     try:
         selected_frequencies = [float(freq.strip()) for freq in selected_frequencies if freq.strip()]
     except ValueError:
@@ -84,53 +86,55 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         st.error("Invalid frequency input. Please enter numeric values separated by commas.")
     
     if selected_files and selected_frequencies:
-        # Generate consistent colors for files
-        color_map = px.colors.qualitative.Set1
-        file_colors = {file: color_map[i % len(color_map)] for i, file in enumerate(selected_files)}
+        # Initialize Plotly figure
+        fig = go.Figure()
         
-        # Create a separate Plotly figure for each frequency
-        for freq in selected_frequencies:
-            fig = go.Figure()
+        for file in selected_files:
+            df = pd.read_csv(file)
+            bead_options = list(range(1, len(st.session_state["metadata"][file]) + 1))
+            selected_bead = st.sidebar.selectbox(f"Select Bead Number for {os.path.basename(file)}", bead_options)
             
-            for file in selected_files:
-                df = pd.read_csv(file)
-                bead_options = list(range(1, len(st.session_state["metadata"][file]) + 1))
-                selected_bead = st.sidebar.selectbox(f"Select Bead Number for {os.path.basename(file)}", bead_options)
-                
-                start, end = st.session_state["metadata"][file][selected_bead - 1]
-                sample_data = df.iloc[start:end].to_numpy()
+            start, end = st.session_state["metadata"][file][selected_bead - 1]
+            sample_data = df.iloc[start:end].to_numpy()
 
-                # Spectrogram computation
-                nperseg = min(a, len(sample_data) // b)
-                noverlap = int(c * nperseg)
-                nfft = min(d, b ** int(np.ceil(np.log2(nperseg * 2))))
-                
-                f, t, Sxx = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-                Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
-                min_disp_dB = np.max(Sxx_dB) - db_scale
-                Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
-                
-                # Extract intensities for the selected frequency
+            # Spectrogram computation
+            nperseg = min(a, len(sample_data) // b)
+            noverlap = int(c * nperseg)
+            nfft = min(d, b ** int(np.ceil(np.log2(nperseg * 2))))
+            
+            f, t, Sxx = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+            Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
+            min_disp_dB = np.max(Sxx_dB) - db_scale
+            Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
+            
+            # Extract intensities for selected frequencies
+            for freq in selected_frequencies:
                 freq_indices = np.where((f >= freq - 5) & (f <= freq + 5))[0]
                 if len(freq_indices) > 0:
                     intensity_over_time = np.mean(Sxx_dB[freq_indices, :] - min_disp_dB, axis=0)
+                    
+                    # Normalize the intensities if the checkbox is checked
+                    if normalize:
+                        intensity_over_time = (intensity_over_time - np.min(intensity_over_time)) / (
+                            np.max(intensity_over_time) - np.min(intensity_over_time) + 1e-10
+                        )
+                    
                     fig.add_trace(go.Scatter(
                         x=t,
                         y=intensity_over_time,
                         mode='lines',
-                        name=f"{os.path.basename(file)}",
-                        line=dict(color=file_colors[file])
+                        name=f"{os.path.basename(file)} - {freq} Hz"
                     ))
-            
-            # Update layout for the current frequency figure
-            fig.update_layout(
-                title=f"Intensity at {freq} Hz Over Time",
-                xaxis_title="Time (s)",
-                yaxis_title="Signal Intensity (dB)",
-                legend_title="CSV Files",
-                height=600,
-                width=1000
-            )
-            
-            # Display the Plotly figure
-            st.plotly_chart(fig)
+        
+        # Update layout of the Plotly figure
+        fig.update_layout(
+            title="Frequency Intensity Over Time",
+            xaxis_title="Time (s)",
+            yaxis_title="Signal Intensity (dB)" if not normalize else "Normalized Intensity",
+            legend_title="File and Frequency",
+            height=600,
+            width=1000
+        )
+        
+        # Display the Plotly figure
+        st.plotly_chart(fig)
