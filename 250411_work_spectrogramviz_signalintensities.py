@@ -7,7 +7,7 @@ import zipfile
 import os
 
 st.set_page_config(layout="wide")
-st.title("Spectrogram VIZ")
+st.title("Signal Intensity Comparison")
 
 def extract_zip(zip_path, extract_dir="extracted_csvs"):
     if os.path.exists(extract_dir):
@@ -65,8 +65,6 @@ a = st.sidebar.number_input("nperseg parameter (a)", min_value=256, max_value=40
 b = st.sidebar.number_input("Division Factor (b)", min_value=1, max_value=10, value=4)
 c = st.sidebar.number_input("Overlap Ratio (c)", min_value=0.0, max_value=1.0, value=0.99)
 d = st.sidebar.number_input("nfft parameter (d)", min_value=512, max_value=8192, value=2048)
-db_scale = st.sidebar.number_input("dB Scale", min_value=50, max_value=150, value=110)
-ylimit = st.sidebar.number_input("Y-Axis Limit", min_value=100, max_value=int(fs / 2), value=500)
 
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     selected_file = st.sidebar.selectbox("Select a CSV file", list(st.session_state["metadata"].keys()))
@@ -95,23 +93,13 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         
         f, t, Sxx = signal.spectrogram(sample_data[:, df.columns.get_loc(selected_column)], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
         Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
-        min_disp_dB = np.max(Sxx_dB) - db_scale
-        Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
-        
-        fig, ax = plt.subplots(figsize=(6, 4))
-        img = ax.pcolormesh(t, f, Sxx_dB - min_disp_dB, shading='gouraud', cmap='jet')
-        ax.set_ylim([0, ylimit])
-        ax.set_ylabel("Frequency (Hz)")
-        ax.set_xlabel("Time (s)")
-        fig.colorbar(img, ax=ax, aspect=20)
-        st.pyplot(fig)
         
         if st.session_state["selected_frequencies"]:
             fig, ax = plt.subplots(figsize=(6, 4))
             for freq in st.session_state["selected_frequencies"]:
                 freq_indices = np.where((f >= freq - 5) & (f <= freq + 5))[0]
                 if len(freq_indices) > 0:
-                    intensity_over_time = np.mean(Sxx_dB[freq_indices, :] - min_disp_dB, axis=0)
+                    intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0)
                     ax.plot(t, intensity_over_time, label=f"{freq} Hz")
             
             ax.set_xlabel("Time (s)")
