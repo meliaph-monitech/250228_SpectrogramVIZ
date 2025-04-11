@@ -79,7 +79,9 @@ with st.sidebar:
         except FileNotFoundError as e:
             st.error(str(e))
         finally:
-            os.remove("temp.zip")  # Clean up the temporary ZIP file
+            # Delete the temporary ZIP file if it exists
+            if os.path.exists("temp.zip"):
+                os.remove("temp.zip")
 
 # Sidebar for signal processing parameters
 fs = st.sidebar.number_input("Sampling Frequency (fs)", min_value=1000, max_value=50000, value=10000)
