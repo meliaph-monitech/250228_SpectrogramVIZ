@@ -93,9 +93,9 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         
         # Create subplots for the selected files
         num_files = len(selected_files)
-        cols = 2
-        rows = -(-num_files // cols)  # Calculate rows for the subplot grid
-        fig, axes = plt.subplots(rows, cols, figsize=(10, rows * 4))
+        cols = 6  # Fixed number of columns
+        rows = -(-num_files // cols)  # Calculate rows (ceil division)
+        fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
         axes = np.array(axes).reshape(-1)  # Flatten to handle single-axis cases
         
         for ax, file in zip(axes, selected_files):
