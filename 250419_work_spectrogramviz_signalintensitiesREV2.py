@@ -80,7 +80,13 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         column_options = df.columns[:2].tolist()
         selected_column = st.sidebar.radio("Select Data Column", column_options)
         
+        if "selected_frequencies" not in st.session_state:
+            st.session_state["selected_frequencies"] = []
+        
         frequency = st.sidebar.number_input("Enter Frequency (Hz)", min_value=1, value=240)
+        if st.sidebar.button("Add Frequency"):
+            if frequency not in st.session_state["selected_frequencies"]:
+                st.session_state["selected_frequencies"].append(frequency)
         
         start, end = st.session_state["metadata"][selected_file][selected_bead - 1]
         sample_data = df.iloc[start:end, :2].values
@@ -92,10 +98,11 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
 
         # Generate Plotly figure
         fig = go.Figure()
-        freq_indices = np.where((f >= frequency - 5) & (f <= frequency + 5))[0]
-        if len(freq_indices) > 0:
-            intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0)
-            fig.add_trace(go.Scatter(x=t, y=intensity_over_time, mode='lines', name=f"{frequency} Hz"))
+        for freq in st.session_state["selected_frequencies"]:
+            freq_indices = np.where((f >= freq - 5) & (f <= freq + 5))[0]
+            if len(freq_indices) > 0:
+                intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0)
+                fig.add_trace(go.Scatter(x=t, y=intensity_over_time, mode='lines', name=f"{freq} Hz"))
 
         fig.update_layout(
             title="Signal Intensity Over Time",
@@ -105,3 +112,6 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
             template="plotly_white",
         )
         st.plotly_chart(fig, use_container_width=True)
+        
+        if st.sidebar.button("Clear Frequencies"):
+            st.session_state["selected_frequencies"] = []
