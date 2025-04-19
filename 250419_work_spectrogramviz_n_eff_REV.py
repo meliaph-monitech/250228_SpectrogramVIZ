@@ -95,72 +95,83 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
     # Map back to full file paths
     selected_files = [shortened_file_names[short_name] for short_name in selected_files_short]
     
-    selected_bead = st.sidebar.number_input("Select Bead Number", min_value=1, value=1, step=1)
+    if selected_files:
+        # Detect available bead numbers based on the selected files
+        bead_options = []
+        for file in selected_files:
+            bead_count = len(st.session_state["metadata"][file])
+            bead_options.extend(list(range(1, bead_count + 1)))
+        
+        # Remove duplicates and sort bead numbers
+        bead_options = sorted(set(bead_options))
+        
+        # Dropdown to select bead number
+        selected_bead = st.sidebar.selectbox("Select Bead Number", bead_options)
     
-    # Initialize session state for spectrogram data
-    if "spectrograms" not in st.session_state:
-        st.session_state["spectrograms"] = {}
+        # Initialize session state for spectrogram data
+        if "spectrograms" not in st.session_state:
+            st.session_state["spectrograms"] = {}
 
-    # Update session state based on selected files
-    for file in selected_files:
-        if file not in st.session_state["spectrograms"]:
-            # Compute spectrogram only for newly selected files
-            if selected_bead <= len(st.session_state["metadata"][file]):  # Ensure bead number is valid
-                df = pd.read_csv(file)
-                start, end = st.session_state["metadata"][file][selected_bead - 1]
-                sample_data = df.iloc[start:end, :2].values
-                
-                fs = 10000
-                nperseg = min(1024, len(sample_data) // 4)
-                noverlap = int(0.99 * nperseg)
-                nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
-                db_scale = 110
-                
-                f, t, Sxx = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-                Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
-                min_disp_dB = np.max(Sxx_dB) - db_scale
-                Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
-                
-                # Store the spectrogram data in session state
-                st.session_state["spectrograms"][file] = {
-                    "f": f,
-                    "t": t,
-                    "Sxx_dB": Sxx_dB - min_disp_dB,
-                    "short_name": shorten_file_name(file)
-                }
-    
-    # Remove spectrograms for deselected files
-    for file in list(st.session_state["spectrograms"].keys()):
-        if file not in selected_files:
-            del st.session_state["spectrograms"][file]
+        # Update session state based on selected files
+        for file in selected_files:
+            if file not in st.session_state["spectrograms"]:
+                # Compute spectrogram only for newly selected files
+                if selected_bead <= len(st.session_state["metadata"][file]):  # Ensure bead number is valid
+                    df = pd.read_csv(file)
+                    start, end = st.session_state["metadata"][file][selected_bead - 1]
+                    sample_data = df.iloc[start:end, :2].values
+                    
+                    fs = 10000
+                    nperseg = min(1024, len(sample_data) // 4)
+                    noverlap = int(0.99 * nperseg)
+                    nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
+                    db_scale = 110
+                    
+                    f, t, Sxx = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+                    Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
+                    min_disp_dB = np.max(Sxx_dB) - db_scale
+                    Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
+                    
+                    # Store the spectrogram data in session state
+                    st.session_state["spectrograms"][file] = {
+                        "f": f,
+                        "t": t,
+                        "Sxx_dB": Sxx_dB - min_disp_dB,
+                        "short_name": shorten_file_name(file)
+                    }
+        
+        # Remove spectrograms for deselected files
+        for file in list(st.session_state["spectrograms"].keys()):
+            if file not in selected_files:
+                del st.session_state["spectrograms"][file]
 
-    # Render the spectrograms
-    spectrograms = st.session_state["spectrograms"]
-    num_plots = len(spectrograms)
-    cols = 6  # Fixed number of columns per row
-    rows = int(np.ceil(max(len(shortened_file_names), 1) / cols))  # Calculate rows dynamically based on the maximum number of files
+        # Render the spectrograms
+        spectrograms = st.session_state["spectrograms"]
+        num_plots = len(spectrograms)
+        cols = 6  # Fixed number of columns per row
+        rows = int(np.ceil(max(len(shortened_file_names), 1) / cols))  # Calculate rows dynamically based on the maximum number of files
 
-    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
-    axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
+        fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
+        axes = np.array(axes).reshape(-1)  # Flatten axes array to handle cases with fewer plots
 
-    # Clear all axes to ensure unused subplots are empty
-    for ax in axes:
-        ax.clear()
-        ax.axis('off')  # Hide unused axes initially
+        # Clear all axes to ensure unused subplots are empty
+        for ax in axes:
+            ax.clear()
+            ax.axis('off')  # Hide unused axes initially
 
-    # Populate the axes with selected spectrograms
-    for i, (file, data) in enumerate(spectrograms.items()):
-        ax = axes[i]
-        img = ax.pcolormesh(data["t"], data["f"], data["Sxx_dB"], shading='gouraud', cmap='jet')
-        ax.set_ylim([0, 500])
-        ax.set_ylabel("Frequency (Hz)")
-        ax.set_xlabel("Time (s)")
-        ax.set_title(f"Bead {selected_bead}\n{data['short_name']}")
-        fig.colorbar(img, ax=ax, aspect=20)
-        ax.axis('on')  # Turn on the axis for active plots
+        # Populate the axes with selected spectrograms
+        for i, (file, data) in enumerate(spectrograms.items()):
+            ax = axes[i]
+            img = ax.pcolormesh(data["t"], data["f"], data["Sxx_dB"], shading='gouraud', cmap='jet')
+            ax.set_ylim([0, 500])
+            ax.set_ylabel("Frequency (Hz)")
+            ax.set_xlabel("Time (s)")
+            ax.set_title(f"Bead {selected_bead}\n{data['short_name']}")
+            fig.colorbar(img, ax=ax, aspect=20)
+            ax.axis('on')  # Turn on the axis for active plots
 
-    # Adjust spacing between rows and columns to prevent overlap
-    plt.subplots_adjust(hspace=0.5, wspace=0.4)
+        # Adjust spacing between rows and columns to prevent overlap
+        plt.subplots_adjust(hspace=0.5, wspace=0.4)
 
-    # Render the figure
-    st.pyplot(fig)
+        # Render the figure
+        st.pyplot(fig)
