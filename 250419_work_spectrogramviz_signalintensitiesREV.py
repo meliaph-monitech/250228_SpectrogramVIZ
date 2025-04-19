@@ -66,6 +66,10 @@ b = st.sidebar.number_input("Division Factor (b)", min_value=1, max_value=10, va
 c = st.sidebar.number_input("Overlap Ratio (c)", min_value=0.0, max_value=1.0, value=0.99)
 d = st.sidebar.number_input("nfft parameter (d)", min_value=512, max_value=8192, value=2048)
 
+# Add inputs for y-axis limits
+y_axis_min = st.sidebar.number_input("Y-axis Lower Limit (dB)", value=-100.0)
+y_axis_max = st.sidebar.number_input("Y-axis Upper Limit (dB)", value=0.0)
+
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
     selected_file = st.sidebar.selectbox("Select a CSV file", list(st.session_state["metadata"].keys()))
     
@@ -104,6 +108,7 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
             
             ax.set_xlabel("Time (s)")
             ax.set_ylabel("Signal Intensities (dB)")
+            ax.set_ylim(y_axis_min, y_axis_max)  # Apply y-axis limits
             ax.legend()
             st.pyplot(fig)
         
