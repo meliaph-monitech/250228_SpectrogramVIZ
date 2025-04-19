@@ -1,15 +1,15 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import scipy.signal as signal
+import numpy as np
 import zipfile
 import os
+from scipy.signal import spectrogram
+import plotly.graph_objects as go
 
 st.set_page_config(layout="wide")
-st.title("Signal Intensity Comparison (Multiple Files)")
+st.title("Signal Intensity Comparison with Plotly")
 
-# Function to extract CSV files from a ZIP archive
+# Function to extract CSV files from a ZIP file
 def extract_zip(zip_path, extract_dir="extracted_csvs"):
     if os.path.exists(extract_dir):
         for file in os.listdir(extract_dir):
@@ -39,7 +39,7 @@ def segment_beads(df, column, threshold):
             i += 1
     return list(zip(start_indices, end_indices))
 
-# Sidebar for file upload and configuration
+# Sidebar for file upload and settings
 with st.sidebar:
     uploaded_file = st.file_uploader("Upload a ZIP file containing CSV files", type=["zip"])
     if uploaded_file:
@@ -63,73 +63,45 @@ with st.sidebar:
                 st.success("Bead segmentation complete")
                 st.session_state["metadata"] = metadata
 
-# Spectrogram parameters
+# Sampling and spectrogram parameters
 fs = st.sidebar.number_input("Sampling Frequency (fs)", min_value=1000, max_value=50000, value=10000)
-a = st.sidebar.number_input("nperseg parameter (a)", min_value=256, max_value=4096, value=1024)
-b = st.sidebar.number_input("Division Factor (b)", min_value=1, max_value=10, value=4)
-c = st.sidebar.number_input("Overlap Ratio (c)", min_value=0.0, max_value=1.0, value=0.99)
-d = st.sidebar.number_input("nfft parameter (d)", min_value=512, max_value=8192, value=2048)
+nperseg = st.sidebar.number_input("nperseg parameter", min_value=256, max_value=4096, value=1024)
+noverlap_factor = st.sidebar.slider("Overlap Ratio", min_value=0.0, max_value=1.0, value=0.5)
+nfft = st.sidebar.number_input("nfft parameter", min_value=512, max_value=8192, value=2048)
 
-# Y-axis limits for the line plot
-y_axis_min = st.sidebar.number_input("Y-axis Lower Limit (dB)", value=-160.0)
-y_axis_max = st.sidebar.number_input("Y-axis Upper Limit (dB)", value=-60.0)
-
-# Main visualization logic
+# Main plot generation
 if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
-    # Allow multiple file selection
-    selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
+    selected_file = st.sidebar.selectbox("Select a CSV file", list(st.session_state["metadata"].keys()))
     
-    if selected_files:
-        selected_column = st.sidebar.radio("Select Data Column", df_sample.columns[:2].tolist())
-        selected_bead = st.sidebar.number_input("Select Bead Number", min_value=1, value=1)
-
-        if "selected_frequencies" not in st.session_state:
-            st.session_state["selected_frequencies"] = []
+    if selected_file:
+        df = pd.read_csv(selected_file)
+        bead_options = list(range(1, len(st.session_state["metadata"][selected_file]) + 1))
+        selected_bead = st.sidebar.selectbox("Select a Bead Number", bead_options)
+        column_options = df.columns[:2].tolist()
+        selected_column = st.sidebar.radio("Select Data Column", column_options)
         
         frequency = st.sidebar.number_input("Enter Frequency (Hz)", min_value=1, value=240)
-        if st.sidebar.button("Add Frequency"):
-            if frequency not in st.session_state["selected_frequencies"]:
-                st.session_state["selected_frequencies"].append(frequency)
         
-        # Create subplots for the selected files
-        num_files = len(selected_files)
-        cols = 6  # Fixed number of columns
-        rows = -(-num_files // cols)  # Calculate rows (ceil division)
-        fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
-        axes = np.array(axes).reshape(-1)  # Flatten to handle single-axis cases
+        start, end = st.session_state["metadata"][selected_file][selected_bead - 1]
+        sample_data = df.iloc[start:end, :2].values
         
-        for ax, file in zip(axes, selected_files):
-            df = pd.read_csv(file)
-            if selected_bead <= len(st.session_state["metadata"][file]):
-                start, end = st.session_state["metadata"][file][selected_bead - 1]
-                sample_data = df.iloc[start:end, :2].values
-                
-                nperseg = min(a, len(sample_data) // b)
-                noverlap = int(c * nperseg)
-                nfft = min(d, b ** int(np.ceil(np.log2(nperseg * 2))))
-                
-                f, t, Sxx = signal.spectrogram(sample_data[:, df.columns.get_loc(selected_column)], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
-                Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
-                
-                for freq in st.session_state["selected_frequencies"]:
-                    freq_indices = np.where((f >= freq - 5) & (f <= freq + 5))[0]
-                    if len(freq_indices) > 0:
-                        intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0)
-                        ax.plot(t, intensity_over_time, label=f"{freq} Hz")
-                
-                ax.set_title(os.path.basename(file))
-                ax.set_xlabel("Time (s)")
-                ax.set_ylabel("Signal Intensities (dB)")
-                ax.set_ylim(y_axis_min, y_axis_max)
-                ax.legend()
-            else:
-                ax.axis('off')
+        noverlap = int(noverlap_factor * nperseg)
         
-        # Hide unused subplots if number of selected files is less than grid size
-        for ax in axes[len(selected_files):]:
-            ax.axis('off')
-        
-        st.pyplot(fig)
-        
-        if st.sidebar.button("Clear Frequencies"):
-            st.session_state["selected_frequencies"] = []
+        f, t, Sxx = spectrogram(sample_data[:, df.columns.get_loc(selected_column)], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+        Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
+
+        # Generate Plotly figure
+        fig = go.Figure()
+        freq_indices = np.where((f >= frequency - 5) & (f <= frequency + 5))[0]
+        if len(freq_indices) > 0:
+            intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0)
+            fig.add_trace(go.Scatter(x=t, y=intensity_over_time, mode='lines', name=f"{frequency} Hz"))
+
+        fig.update_layout(
+            title="Signal Intensity Over Time",
+            xaxis_title="Time (s)",
+            yaxis_title="Signal Intensity (dB)",
+            legend_title="Frequency",
+            template="plotly_white",
+        )
+        st.plotly_chart(fig, use_container_width=True)
