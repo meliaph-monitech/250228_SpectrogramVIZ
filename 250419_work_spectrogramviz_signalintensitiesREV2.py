@@ -105,14 +105,11 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 if len(freq_indices) > 0:
                     intensity_over_time = np.mean(Sxx_dB[freq_indices, :], axis=0)
                     filename = os.path.basename(selected_file)
-                    
-                    # Add a trace with a hovertemplate for tooltips
                     fig.add_trace(go.Scatter(
                         x=t,
                         y=intensity_over_time,
                         mode='lines',
-                        name=f"{filename} ({frequency} Hz)",
-                        hovertemplate=f"<b>File:</b> {filename}<br><b>Time:</b> %{x:.2f}s<br><b>Intensity:</b> %{y:.2f} dB<extra></extra>"
+                        name=f"{filename} ({frequency} Hz)"
                     ))
 
         # Update Plotly layout
