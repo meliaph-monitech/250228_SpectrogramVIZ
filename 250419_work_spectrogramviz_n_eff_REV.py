@@ -43,7 +43,7 @@ def segment_beads(df, column, threshold):
     return list(zip(start_indices, end_indices))
 
 # Helper function to extract short file names
-def shorten_file_name(file_path):
+# def shorten_file_name(file_path):
     # base_name = os.path.basename(file_path)
     # parts = base_name.split("_")
     # hhmmss = parts[1]  # The second part is always the time (hhmmss)
