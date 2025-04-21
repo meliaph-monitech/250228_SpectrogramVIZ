@@ -43,12 +43,21 @@ def segment_beads(df, column, threshold):
     return list(zip(start_indices, end_indices))
 
 # Helper function to extract short file names
+# def shorten_file_name(file_path):
+#     base_name = os.path.basename(file_path)
+#     parts = base_name.split("_")
+#     hhmmss = parts[1]  # The second part is always the time (hhmmss)
+#     nn = parts[-1].split(".")[0]  # The last part before .csv is the nn
+#     return f"{hhmmss}_{nn}"
 def shorten_file_name(file_path):
     base_name = os.path.basename(file_path)
     parts = base_name.split("_")
-    hhmmss = parts[1]  # The second part is always the time (hhmmss)
-    nn = parts[-1].split(".")[0]  # The last part before .csv is the nn
-    return f"{hhmmss}_{nn}"
+    if len(parts) > 2:
+        value_after_second_underscore = "_".join(parts[2:])
+        name_before_csv = value_after_second_underscore.split(".")[0]
+        return name_before_csv
+    else:
+        return None # Or handle cases with fewer than two underscores differently
 
 # Sidebar for file upload and configuration
 with st.sidebar:
