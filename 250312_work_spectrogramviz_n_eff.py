@@ -46,16 +46,28 @@ def segment_beads(df, column, threshold):
     return list(zip(start_indices, end_indices))
 
 # Helper function to extract short file names
+# def shorten_file_name(file_path):
+#     """
+#     Extracts the hhmmss and nn parts of the file name from the format:
+#     extracted_csvs/YYMMDD_hhmmss_*_nn.csv
+#     """
+#     base_name = os.path.basename(file_path)
+#     parts = base_name.split("_")
+#     hhmmss = parts[1]  # The second part is always the time (hhmmss)
+#     nn = parts[-1].split(".")[0]  # The last part before .csv is the nn
+#     return f"{hhmmss}_{nn}"
+
 def shorten_file_name(file_path):
     """
-    Extracts the hhmmss and nn parts of the file name from the format:
-    extracted_csvs/YYMMDD_hhmmss_*_nn.csv
+    Extracts the part of the file name after the second underscore and before '.csv'.
+    For example, for 'extracted_csvs/YYMMDD_hhmmss_someinfo_nn.csv',
+    it will return 'someinfo_nn'.
     """
     base_name = os.path.basename(file_path)
-    parts = base_name.split("_")
-    hhmmss = parts[1]  # The second part is always the time (hhmmss)
-    nn = parts[-1].split(".")[0]  # The last part before .csv is the nn
-    return f"{hhmmss}_{nn}"
+    name_without_ext = os.path.splitext(base_name)[0]
+    parts = name_without_ext.split("_")
+    after_second = "_".join(parts[2:])  # Join parts from the third element onward
+    return after_second
 
 # Sidebar for file upload and configuration
 with st.sidebar:
