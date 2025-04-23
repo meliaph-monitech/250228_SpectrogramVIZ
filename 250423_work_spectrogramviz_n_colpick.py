@@ -109,17 +109,20 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
         bead_options = sorted(set(bead_options))
         
         selected_bead = st.sidebar.selectbox("Select Bead Number", bead_options)
-
+        
+        # Dropdown to choose which column to use for the spectrogram
+        column_to_use = st.sidebar.selectbox("Select column for spectrogram", df_sample.columns[:2])
+        
         # Generate or retrieve spectrograms
         for file in selected_files:
-            bead_key = f"{file}_bead_{selected_bead}"
+            bead_key = f"{file}_bead_{selected_bead}_{column_to_use}"
             if bead_key not in st.session_state["spectrograms"]:
                 if selected_bead <= len(st.session_state["metadata"][file]):
                     if file not in st.session_state["csv_dataframes"]:
                         st.session_state["csv_dataframes"][file] = pd.read_csv(file)
                     df = st.session_state["csv_dataframes"][file]
                     start, end = st.session_state["metadata"][file][selected_bead - 1]
-                    sample_data = df.iloc[start:end, :2].values
+                    sample_data = df.iloc[start:end][column_to_use].values
                     
                     fs = 10000
                     nperseg = min(1024, len(sample_data) // 4)
@@ -127,7 +130,7 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                     nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
                     db_scale = 110
                     
-                    f, t, Sxx_dB = compute_spectrogram(sample_data[:, 0], fs, nperseg, noverlap, nfft, db_scale)
+                    f, t, Sxx_dB = compute_spectrogram(sample_data, fs, nperseg, noverlap, nfft, db_scale)
                     st.session_state["spectrograms"][bead_key] = {
                         "f": f,
                         "t": t,
@@ -144,7 +147,7 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                 del st.session_state["spectrograms"][k]
 
         # Plotting
-        spectrograms = {key: data for key, data in st.session_state["spectrograms"].items() if key.endswith(f"bead_{selected_bead}")}
+        spectrograms = {key: data for key, data in st.session_state["spectrograms"].items() if key.endswith(f"bead_{selected_bead}_{column_to_use}")}
         num_plots = len(spectrograms)
         cols = 6
         rows = int(np.ceil(num_plots / cols))
