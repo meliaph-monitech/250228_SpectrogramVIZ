@@ -114,7 +114,7 @@ if "metadata" in st.session_state and isinstance(st.session_state["metadata"], d
                     nfft = min(2048, 4 ** int(np.ceil(np.log2(nperseg * 2))))
                     db_scale = 110
                     
-                    f, t, Sxx = signal.spectrogram(sample_data[:, 0], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
+                    f, t, Sxx = signal.spectrogram(sample_data[:, 1], fs, nperseg=nperseg, noverlap=noverlap, nfft=nfft)
                     Sxx_dB = 20 * np.log10(np.abs(Sxx) + np.finfo(float).eps)
                     min_disp_dB = np.max(Sxx_dB) - db_scale
                     Sxx_dB[Sxx_dB < min_disp_dB] = min_disp_dB
