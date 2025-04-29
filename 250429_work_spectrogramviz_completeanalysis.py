@@ -232,15 +232,20 @@ if uploaded_zip:
                 st.session_state["metadata"] = metadata
                 st.success("Bead segmentation complete.")
 
-            fs = st.number_input("Sampling Frequency (fs)", min_value=1000, max_value=50000, value=10000)
-            nperseg = st.number_input("nperseg parameter", min_value=256, max_value=4096, value=1024)
-            noverlap_factor = st.slider("Overlap Ratio", min_value=0.0, max_value=1.0, value=0.5)
-            nfft = st.number_input("nfft parameter", min_value=512, max_value=8192, value=2048)
-
-            # NEW: Add Min dB / Max dB Controls
-            min_db = st.number_input("Min dB (for FFT Plot)", value=-100)
-            max_db = st.number_input("Max dB (for FFT Plot)", value=0)
-
+            # Sidebar additional control for Division Factor
+            use_division_factor = st.sidebar.checkbox("Use Division Factor for nperseg?")
+            division_factor = st.sidebar.number_input("Division Factor (b)", min_value=1, max_value=10, value=4)
+            
+            # Sampling and spectrogram parameters
+            fs = st.sidebar.number_input("Sampling Frequency (fs)", min_value=1000, max_value=50000, value=10000)
+            nperseg_user = st.sidebar.number_input("nperseg parameter", min_value=256, max_value=4096, value=1024)
+            noverlap_factor = st.sidebar.slider("Overlap Ratio", min_value=0.0, max_value=1.0, value=0.99)
+            nfft = st.sidebar.number_input("nfft parameter", min_value=512, max_value=8192, value=2048)
+            
+            # Min and Max dB controls for FFT plots (already added earlier)
+            min_dB = st.sidebar.number_input("Min dB for FFT plot", value=-140)
+            max_dB = st.sidebar.number_input("Max dB for FFT plot", value=-40)
+            
         if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
             selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
             if selected_files:
@@ -263,6 +268,14 @@ if uploaded_zip:
                     if selected_bead <= len(st.session_state["metadata"][selected_file]):
                         start, end = st.session_state["metadata"][selected_file][selected_bead - 1]
                         sample_data = df.iloc[start:end, :]
+
+                        # Dynamically adjust nperseg based on user choice
+                        if use_division_factor:
+                            nperseg = min(nperseg_user, len(sample_data) // division_factor)
+                        else:
+                            nperseg = nperseg_user
+                        
+                        noverlap = int(noverlap_factor * nperseg)
 
                         # Spectrogram
                         noverlap = int(noverlap_factor * nperseg)
