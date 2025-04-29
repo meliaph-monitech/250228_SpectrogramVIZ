@@ -319,6 +319,14 @@ if uploaded_zip:
                             fill="tozeroy",  # <-- FILL BELOW THE LINE
                             name=f"{selected_file}"
                         ))
+                        
+                        freq_fig.update_layout(
+                            title=f"FFT",
+                            xaxis_title="Frequency (Hz)",
+                            yaxis_title="Signal Intensity (dB)",
+                            legend_title="CSV Files",
+                            template="plotly_white"
+                        )
 
                         # Band Energy
                         bands = [(0, 5000), (5000, 10000), (10000, 15000), (15000, 20000)]
