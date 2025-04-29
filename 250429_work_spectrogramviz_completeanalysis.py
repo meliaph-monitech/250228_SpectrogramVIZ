@@ -299,6 +299,14 @@ if uploaded_zip:
                                 name=f"{filename} ({frequency} Hz)"
                             ))
 
+                            fig.update_layout(
+                                title=f"Signal Intensity at {frequency} Hz",
+                                xaxis_title="Time (s)",
+                                yaxis_title="Signal Intensity (dB)",
+                                legend_title="CSV Files",
+                                template="plotly_white"
+                            )
+
                         # --- Additional Figures ---
                         # FFT
                         freqs, psd = welch(sample_data[selected_column], fs=fs, nperseg=nperseg)
