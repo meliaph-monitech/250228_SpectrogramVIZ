@@ -237,6 +237,10 @@ if uploaded_zip:
             noverlap_factor = st.slider("Overlap Ratio", min_value=0.0, max_value=1.0, value=0.5)
             nfft = st.number_input("nfft parameter", min_value=512, max_value=8192, value=2048)
 
+            # NEW: Add Min dB / Max dB Controls
+            min_db = st.number_input("Min dB (for FFT Plot)", value=-100)
+            max_db = st.number_input("Max dB (for FFT Plot)", value=0)
+
         if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
             selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
             if selected_files:
@@ -289,8 +293,10 @@ if uploaded_zip:
                         mask = (freqs >= 0) & (freqs <= 20000)
 
                         freq_fig.add_trace(go.Scatter(
-                            x=freqs[mask], y=db[mask],
-                            mode="lines", name=f"{selected_file}"
+                            x=freqs[mask], y=np.clip(db[mask], min_db, max_db),
+                            mode="lines",
+                            fill="tozeroy",  # <-- FILL BELOW THE LINE
+                            name=f"{selected_file}"
                         ))
 
                         # Band Energy
