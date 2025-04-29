@@ -243,8 +243,8 @@ if uploaded_zip:
             nfft = st.sidebar.number_input("nfft parameter", min_value=512, max_value=8192, value=2048)
             
             # Min and Max dB controls for FFT plots (already added earlier)
-            min_dB = st.sidebar.number_input("Min dB for FFT plot", value=-140)
-            max_dB = st.sidebar.number_input("Max dB for FFT plot", value=-40)
+            min_D = st.sidebar.number_input("Min dB for FFT plot", value=-140)
+            max_D = st.sidebar.number_input("Max dB for FFT plot", value=-40)
             
         if "metadata" in st.session_state and isinstance(st.session_state["metadata"], dict):
             selected_files = st.sidebar.multiselect("Select CSV files", list(st.session_state["metadata"].keys()))
@@ -306,7 +306,7 @@ if uploaded_zip:
                         mask = (freqs >= 0) & (freqs <= 20000)
 
                         freq_fig.add_trace(go.Scatter(
-                            x=freqs[mask], y=np.clip(db[mask], min_db, max_db),
+                            x=freqs[mask], y=np.clip(db[mask], min_D, max_D),
                             mode="lines",
                             fill="tozeroy",  # <-- FILL BELOW THE LINE
                             name=f"{selected_file}"
