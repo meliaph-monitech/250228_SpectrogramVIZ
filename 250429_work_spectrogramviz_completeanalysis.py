@@ -6,6 +6,7 @@ import scipy.signal as signal
 import zipfile
 import os
 
+
 st.set_page_config(layout="wide")
 st.title("Spectrogram VIZ")
 
